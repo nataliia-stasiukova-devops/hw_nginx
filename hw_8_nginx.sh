@@ -14,8 +14,8 @@
  
 function install_ngnix {
 	echo 'Installing nginx'
-	echo "$user_password" | sudo -S apt update
-	echo "$user_password" | sudo -S apt install nginx
+	apt update
+	apt install nginx
 }
 
 function check_nginx {
@@ -37,20 +37,23 @@ function configure_nginx {
 		echo 'File example.com already exist, skipping configuration';
 	else
 		echo 'Creating and configuring file example.com'
-		echo "$user_password" | sudo -S tee /etc/nginx/sites-available/default > /dev/null <<EOF
+		tee /etc/nginx/sites-available/default > /dev/null <<EOF
 			 server {
         			listen 80;
-        			server_name example.com;
+        			server_name localhost;
         			root /var/www/example.com;
         			index index.html;
+                                include /etc/nginx/locations/*;
 			}
 EOF
 
-		echo "$user_password" | sudo -S ln -s /etc/nginx/sites-available/example.com /etc/nginx/sites-enabled/
+		# ln -s /etc/nginx/sites-available/example.com /etc/nginx/sites-enabled/
 	fi
+	mkdir -p /etc/nginx/locations
+
 	
 	# Configure nginx config
-        echo $user_password | sudo -S tee /etc/nginx/nginx.conf > /dev/null <<EOF
+        tee /etc/nginx/nginx.conf > /dev/null <<EOF
 		worker_processes 2;
 		user www-data;
 
@@ -68,7 +71,7 @@ EOF
 EOF
 
 echo 'Restarting nginx'
-echo "$user_password" | sudo -S systemctl restart nginx
+systemctl restart nginx
 }
 
 function configure_ssl {
@@ -91,7 +94,7 @@ function configure_ssl {
 	#	echo 'python3-certbot-nginx installed, skipping installation';
 	#fi
 	# Configure certbot
-	# echo "$user_password" | sudo -S certbot --nginx -d example.com -d www.example.com
+	# certbot --nginx -d example.com -d www.example.com
 	 certbot certonly --standalone -d example.com -d www.example.com
          tee /etc/nginx/sites-available/default > /dev/null <<EOF
 		server {
@@ -125,17 +128,35 @@ EOF
 
 function install_dependencies {
 	echo "install dependencies"
+	echo "Install apache2-utils & nginx-extras"
+	apt install apache2-utils nginx-extras
+	echo "Create password file"
+	htpasswd -c /etc/nginx/.htpasswd user1
+	# Update nginx config
+ 	tee /etc/nginx/locations/auth >> /dev/null <<EOF
+ 			location ~ ^/secure/~(.+?)(/.*)?$ {
+				auth_basic "Restricted Area";
+				auth_basic_user_file /etc/nginx/.htpasswd;
+				root /home/\$1/public_html;
+				try_files \$2 \$2/ =404;
+			}
+EOF
+	# Restart nginx
+	systemctl restart nginx
+	# Test
+	curl -L -u user1:password -v http://localhost/secure/~$1/index.html
 }
 
+
 function configure_user_dir {
-	cd /home/$1
+	user_dir=$1
+	cd /home/$user_dir
         mkdir -p public_html
-	tee /home/$1/public_html/index.html > /dev/null <<EOF
+	tee /home/$user_dir/public_html/index.html > /dev/null <<EOF
 		<h1>Hello Nginx!</h1>
 EOF
-      	#usermod -a -G $1 www-data
-      	chown -R $1:www-data /home/$1/public_html
- 	chmod -R 755 /home/$1/public_html
+      	chown -R $user_dir:www-data /home/$user_dir/public_html
+ 	chmod -R 755 /home/$user_dir/public_html
  	systemctl restart nginx
 }
 
@@ -143,22 +164,17 @@ function main {
 	# Check that nginx is installed.
 	check_nginx
 	# Check that virtual host is configured, if not ask for virtual-host name and configure it.
-	configure_nginx
-	# Configure SSL
+	configure_nginx "$1"
+	# Configure SSL TODO change in all configurations example.com to another domain name
 	# configure_ssl
 	# Configure user dir
 	configure_user_dir "$1"
 	# Check that dependencies of user_dir, auth and CGI are present, if not install.
-	install_dependencies
+	install_dependencies "$1"
 }
 
-# Get sudo password
-read -s -p "Password:" user_password
-
 # Run script
-main "$1"
+main "$1" # user directory
 
-# Remove sudo massword
-unset user_password
 
 
