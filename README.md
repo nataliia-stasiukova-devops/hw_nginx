@@ -11,7 +11,7 @@ Create shell script that will setup user_dir, auth, auth with pam and CGI script
 
 
 ### Link to script
-[Link](https://github.com/nataliia-stasiukova-devops/hw_nginx)
+[Script](https://github.com/nataliia-stasiukova-devops/hw_nginx)
 
 ### How to run:
 - In order to run script use sudo. Pass user directory as param.
