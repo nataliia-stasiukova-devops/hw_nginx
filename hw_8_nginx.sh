@@ -15,7 +15,7 @@
 function install_ngnix {
 	echo 'Installing nginx'
 	apt update
-	apt install nginx
+	apt install nginx ######################### this will get stuck #######################
 }
 
 function check_nginx {
